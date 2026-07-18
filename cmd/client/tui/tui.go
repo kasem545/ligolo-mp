@@ -339,6 +339,21 @@ func (app *App) initDashboard() {
 
 		return trace, nil
 	})
+
+	app.dashboard.SetSessionPingSweepFunc(func(sess *session.Session, cidr string) ([]string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+
+		r, err := app.operator.Client().PingSweep(ctx, &pb.PingSweepReq{
+			SessionID: sess.ID,
+			CIDR:      cidr,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		return r.LiveHosts, nil
+	})
 }
 
 func (app *App) initAdmin() {

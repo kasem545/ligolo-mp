@@ -201,6 +201,48 @@ func TestCodec_RoundTrip_AllPacketTypes(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:    "PingSweepRequest",
+			msgType: MessagePingSweepRequest,
+			payload: PingSweepRequestPacket{CIDR: "192.168.1.0/24"},
+			check: func(t *testing.T, got interface{}) {
+				p, ok := got.(PingSweepRequestPacket)
+				if !ok {
+					t.Errorf("got %T, want PingSweepRequestPacket", got)
+				}
+				if p.CIDR != "192.168.1.0/24" {
+					t.Errorf("got CIDR %q, want %q", p.CIDR, "192.168.1.0/24")
+				}
+			},
+		},
+		{
+			name:    "PingSweepResponse",
+			msgType: MessagePingSweepResponse,
+			payload: PingSweepResponsePacket{LiveHosts: []string{"192.168.1.1", "192.168.1.2"}},
+			check: func(t *testing.T, got interface{}) {
+				p, ok := got.(PingSweepResponsePacket)
+				if !ok {
+					t.Errorf("got %T, want PingSweepResponsePacket", got)
+				}
+				if len(p.LiveHosts) != 2 || p.LiveHosts[0] != "192.168.1.1" || p.LiveHosts[1] != "192.168.1.2" {
+					t.Errorf("got LiveHosts %v, want [192.168.1.1 192.168.1.2]", p.LiveHosts)
+				}
+			},
+		},
+		{
+			name:    "PingSweepResponse_Err",
+			msgType: MessagePingSweepResponse,
+			payload: PingSweepResponsePacket{Err: true, ErrString: "range too large"},
+			check: func(t *testing.T, got interface{}) {
+				p, ok := got.(PingSweepResponsePacket)
+				if !ok {
+					t.Errorf("got %T, want PingSweepResponsePacket", got)
+				}
+				if !p.Err || p.ErrString != "range too large" {
+					t.Errorf("got Err=%v ErrString=%q, want Err=true ErrString=%q", p.Err, p.ErrString, "range too large")
+				}
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -231,6 +273,8 @@ func TestDecoder_MalformedGob_ReturnsError(t *testing.T) {
 		MessageRedirectorCloseResponse,
 		MessageDisconnectRequest,
 		MessageDisconnectResponse,
+		MessagePingSweepRequest,
+		MessagePingSweepResponse,
 	}
 
 	for _, msgType := range msgTypes {

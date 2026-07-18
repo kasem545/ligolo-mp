@@ -333,6 +333,19 @@ func (s *ligoloServer) Traceroute(ctx context.Context, in *pb.TracerouteReq) (*p
 	}, nil
 }
 
+func (s *ligoloServer) PingSweep(ctx context.Context, in *pb.PingSweepReq) (*pb.PingSweepResp, error) {
+	slog.Debug("Received request to ping sweep", slog.Any("in", in))
+
+	liveHosts, err := s.sessService.PingSweep(in.SessionID, in.CIDR)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.PingSweepResp{
+		LiveHosts: liveHosts,
+	}, nil
+}
+
 func (s *ligoloServer) GetOperators(ctx context.Context, in *pb.Empty) (*pb.GetOperatorsResp, error) {
 	slog.Debug("Received request to list operators", slog.Any("in", in))
 	oper := ctx.Value("operator").(*operator.Operator)

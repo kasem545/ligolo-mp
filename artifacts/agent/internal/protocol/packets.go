@@ -28,6 +28,8 @@ const (
 	MessageRedirectorCloseResponse
 	MessageDisconnectRequest
 	MessageDisconnectResponse
+	MessagePingSweepRequest
+	MessagePingSweepResponse
 )
 
 const (
@@ -153,4 +155,16 @@ type HostPingRequestPacket struct {
 // HostPingResponsePacket is sent by the agent to indicate the requested host status
 type HostPingResponsePacket struct {
 	Alive bool
+}
+
+// PingSweepRequestPacket asks the agent to sweep a CIDR range on its local network for live hosts
+type PingSweepRequestPacket struct {
+	CIDR string
+}
+
+// PingSweepResponsePacket is sent by the agent with the list of hosts that responded to the sweep
+type PingSweepResponsePacket struct {
+	LiveHosts []string
+	Err       bool
+	ErrString string
 }

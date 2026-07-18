@@ -244,6 +244,15 @@ func (ss *SessionService) RemoveRedirector(sessID string, redirectorID string) e
 	return ss.repo.Save(session)
 }
 
+func (ss *SessionService) PingSweep(sessID string, cidr string) ([]string, error) {
+	session := ss.repo.GetOne(sessID)
+	if session == nil {
+		return nil, fmt.Errorf("session '%s' not found", sessID)
+	}
+
+	return session.PingSweep(cidr)
+}
+
 func (ss *SessionService) UpdateLastSeen(sessID string) error {
 	slog.Debug("updating last seen")
 	session := ss.repo.GetOne(sessID)

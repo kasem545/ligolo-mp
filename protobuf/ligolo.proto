@@ -38,6 +38,8 @@ service Ligolo {
   rpc GenerateAgent (GenerateAgentReq) returns (GenerateAgentResp) {}
 
   rpc Traceroute (TracerouteReq) returns (TracerouteResp) {}
+
+  rpc PingSweep (PingSweepReq) returns (PingSweepResp) {}
 }
 
 // [Objects]
@@ -197,7 +199,16 @@ message TracerouteReq {
 }
 
 message TracerouteResp {
-  repeated Traceroute Trace = 1; 
+  repeated Traceroute Trace = 1;
+}
+
+message PingSweepReq {
+  string SessionID = 1;
+  string CIDR = 2;
+}
+
+message PingSweepResp {
+  repeated string LiveHosts = 1;
 }
 
 message GetCertsResp {

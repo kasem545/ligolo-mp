@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -12,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -358,5 +360,107 @@ func handleConn(conn net.Conn) {
 			Payload: protocol.DisconnectResponsePacket{},
 		})
 		os.Exit(0)
+	case protocol.MessagePingSweepRequest:
+		sweepRequest := e.(protocol.PingSweepRequestPacket)
+		encoder := protocol.NewEncoder(conn)
+
+		var sweepResponse protocol.PingSweepResponsePacket
+		liveHosts, err := pingSweep(sweepRequest.CIDR)
+		if err != nil {
+			sweepResponse.Err = true
+			sweepResponse.ErrString = err.Error()
+		} else {
+			sweepResponse.LiveHosts = liveHosts
+		}
+
+		encoder.Encode(protocol.Envelope{
+			Type:    protocol.MessagePingSweepResponse,
+			Payload: sweepResponse,
+		})
+	}
+}
+
+// maxSweepHostBits caps the range a single PingSweep request can cover (a
+// /24 or smaller), so a mistyped or malicious CIDR (e.g. a /8 or an IPv6
+// /64) can't make the agent spin up an unbounded number of probes, or make
+// a sweep of mostly-dead hosts run far longer than the operator's RPC
+// timeout (each probe can take several seconds to time out).
+const maxSweepHostBits = 8
+
+// sweepConcurrency bounds how many probes run in parallel.
+const sweepConcurrency = 64
+
+// pingSweep enumerates every host address in cidr and concurrently probes
+// each one with smartping.TryResolve, returning the addresses that responded,
+// sorted in ascending order.
+func pingSweep(cidr string) ([]string, error) {
+	ip, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return nil, err
+	}
+
+	ones, bits := ipnet.Mask.Size()
+	if hostBits := bits - ones; hostBits > maxSweepHostBits {
+		return nil, fmt.Errorf("range too large: /%d exceeds the /%d sweep limit", ones, bits-maxSweepHostBits)
+	}
+
+	hosts := hostAddrs(ipnet)
+	if len(hosts) == 0 {
+		hosts = []string{ip.String()}
+	}
+
+	sem := make(chan struct{}, sweepConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var liveHosts []string
+
+	for _, host := range hosts {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(host string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			if smartping.TryResolve(host) {
+				mu.Lock()
+				liveHosts = append(liveHosts, host)
+				mu.Unlock()
+			}
+		}(host)
+	}
+	wg.Wait()
+
+	sort.Slice(liveHosts, func(i, j int) bool {
+		return bytes.Compare(net.ParseIP(liveHosts[i]).To16(), net.ParseIP(liveHosts[j]).To16()) < 0
+	})
+
+	return liveHosts, nil
+}
+
+// hostAddrs enumerates every address within ipnet, excluding the network and
+// broadcast addresses for IPv4 ranges large enough to have them.
+func hostAddrs(ipnet *net.IPNet) []string {
+	var ips []string
+
+	ip := make(net.IP, len(ipnet.IP))
+	copy(ip, ipnet.IP.Mask(ipnet.Mask))
+	for ; ipnet.Contains(ip); incIP(ip) {
+		ips = append(ips, ip.String())
+	}
+
+	if ipnet.IP.To4() != nil && len(ips) > 2 {
+		ips = ips[1 : len(ips)-1]
+	}
+
+	return ips
+}
+
+// incIP increments ip in place, treating it as a big-endian integer.
+func incIP(ip net.IP) {
+	for i := len(ip) - 1; i >= 0; i-- {
+		ip[i]++
+		if ip[i] != 0 {
+			break
+		}
 	}
 }

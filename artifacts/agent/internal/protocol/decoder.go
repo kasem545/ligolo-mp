@@ -111,6 +111,18 @@ func (d *LigoloDecoder) Decode() error {
 			panic(err)
 		}
 		d.Envelope.Payload = p
+	case MessagePingSweepRequest:
+		p := PingSweepRequestPacket{}
+		if err := gobdecoder.Decode(&p); err != nil {
+			panic(err)
+		}
+		d.Envelope.Payload = p
+	case MessagePingSweepResponse:
+		p := PingSweepResponsePacket{}
+		if err := gobdecoder.Decode(&p); err != nil {
+			panic(err)
+		}
+		d.Envelope.Payload = p
 	default:
 		return errors.New("invalid message type")
 	}

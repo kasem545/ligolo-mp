@@ -406,6 +406,47 @@ func (sess *Session) remoteRemoveRedirector(id string) error {
 	return nil
 }
 
+func (sess *Session) PingSweep(cidr string) ([]string, error) {
+	if !sess.IsConnected {
+		return nil, fmt.Errorf("session is not connected")
+	}
+
+	return sess.remotePingSweep(cidr)
+}
+
+func (sess *Session) remotePingSweep(cidr string) ([]string, error) {
+	if !sess.IsMultiplexOpen() {
+		return nil, fmt.Errorf("multiplex is disconnected")
+	}
+
+	stream, err := sess.Multiplex.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer stream.Close()
+
+	protocolEncoder := protocol.NewEncoder(stream)
+	protocolDecoder := protocol.NewDecoder(stream)
+
+	sweepRequest := protocol.PingSweepRequestPacket{CIDR: cidr}
+	if err := protocolEncoder.Encode(protocol.Envelope{
+		Type:    protocol.MessagePingSweepRequest,
+		Payload: sweepRequest,
+	}); err != nil {
+		return nil, err
+	}
+
+	if err := protocolDecoder.Decode(); err != nil {
+		return nil, err
+	}
+	sweepResponse := protocolDecoder.Envelope.Payload.(protocol.PingSweepResponsePacket)
+	if sweepResponse.Err {
+		return nil, errors.New(sweepResponse.ErrString)
+	}
+
+	return sweepResponse.LiveHosts, nil
+}
+
 func (sess *Session) Hash() string {
 	hasher := sha1.New()
 

@@ -44,6 +44,7 @@ type DashboardPage struct {
 	sessionRemoveRedirectorFunc func(*session.Session, string) error
 	sessionRemoveFunc           func(*session.Session) error
 	tracerouteFunc              func(string) ([]string, error)
+	sessionPingSweepFunc        func(*session.Session, string) ([]string, error)
 
 	operator *operator.Operator
 }
@@ -198,6 +199,33 @@ func (dash *DashboardPage) initSessionsWidget() {
 				cleanup()
 			})
 			dash.AddPage(redir.GetID(), redir, true, true)
+		}))
+
+		menu.AddItem(modals.NewMenuModalElem("Ping sweep", func() {
+			sweep := forms.NewPingSweepForm()
+			sweep.SetSubmitFunc(func(cidr string) {
+				dash.DoWithLoader("Sweeping...", func() {
+					liveHosts, err := dash.sessionPingSweepFunc(sess, cidr)
+					if err != nil {
+						dash.app.QueueUpdateDraw(func() { dash.RemovePage(sweep.GetID()) })
+						dash.ShowError(fmt.Sprintf("Could not sweep %s: %s", cidr, err), cleanup)
+						return
+					}
+
+					dash.app.QueueUpdateDraw(func() { dash.RemovePage(sweep.GetID()) })
+					if len(liveHosts) == 0 {
+						dash.ShowInfo(fmt.Sprintf("No live hosts found in %s", cidr), cleanup)
+						return
+					}
+					dash.ShowText(fmt.Sprintf("Live hosts in %s", cidr), strings.Join(liveHosts, "\n"), cleanup)
+				})
+			})
+			sweep.SetCancelFunc(func() {
+				dash.RemovePage(sweep.GetID())
+				dash.setFocus(dash.sessions)
+				cleanup()
+			})
+			dash.AddPage(sweep.GetID(), sweep, true, true)
 		}))
 
 		menu.AddItem(modals.NewMenuModalElem("Remove", func() {
@@ -488,6 +516,10 @@ func (dash *DashboardPage) SetSessionKillFunc(f func(*session.Session) error) {
 
 func (dash *DashboardPage) SetTracerouteFunc(f func(string) ([]string, error)) {
 	dash.tracerouteFunc = f
+}
+
+func (dash *DashboardPage) SetSessionPingSweepFunc(f func(*session.Session, string) ([]string, error)) {
+	dash.sessionPingSweepFunc = f
 }
 
 func (dash *DashboardPage) RefreshData() {
