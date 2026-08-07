@@ -30,18 +30,20 @@
 ligolo-mp [options]
 
   -agent-addr string
-        Listening address for agents (default "0.0.0.0:11601")
-  -operator-addr string
-        Listening address for operators (default "0.0.0.0:58008")
+        listening address (default "0.0.0.0:11601")
   -daemon
-        Run without TUI (server-only mode)
+        enable daemon mode
   -insecure-agents
-        Disable certificate verification for agents
-  -rotate-pki
-        Regenerate all certificates (CA + server) 
+        Disable certificate verification for agents (insecure!)
+  -max-connection int
+        per tunnel connection pool size (default 1024)
+  -max-inflight int
+        max inflight TCP connections (default 4096)
+  -operator-addr string
+        Address for operators connections (default "0.0.0.0:58008")
+  -v    enable verbose mode
   -version
-        Print version 
-  -v    Enable verbose logging
+        print version
 ```
 
 ## Client Usage
@@ -54,7 +56,7 @@ ligolo-mp-client [options]
   -v    Enable verbose logging
 ```
 
-## Agent Usage
+## Agent Binary Usage
 
 ```
 agent [options]
@@ -67,6 +69,25 @@ agent [options]
         Example: -server 1.2.3.4:11601
   -insecure
         Disable TLS certificate verification
+```
+### PowerShell Agent Usage
+
+1. **Export certs** (run on the Ligolo-MP server):
+
+```bash
+bash artifacts/ps_agent/export-agent-certs.sh ./certs
+```
+
+2. **Copy to the Windows target**: `ca.pem` and `agent.pfx` from the `certs/` directory.
+
+3. **Run the agent**:
+
+```powershell
+# Reverse Connection (agent connects to server)
+.\agent.ps1 -Server 10.0.0.5:11601 -CACertFile ca.pem -PfxFile agent.pfx
+
+# Bind Connection (agent listens, server connects via "Connect Bind Agent")
+.\agent.ps1 -Bind 0.0.0.0:4444 -CACertFile ca.pem -PfxFile agent.pfx
 ```
 
 ## Bind Agent Mode
@@ -82,15 +103,6 @@ In standard mode the agent dials the server. In bind mode the roles are reversed
 
 Press `Ctrl+B` in the dashboard, enter the agent's address (`192.168.1.10:4444`), and connect.
 
-## PKI Rotation
-
-To regenerate the CA and all server certificates:
-
-```
-ligolo-mp --rotate-pki
-```
-
-> **Warning:** All existing operator profiles become invalid after rotation and must be re-exported.
 
 ## Documentation
 
